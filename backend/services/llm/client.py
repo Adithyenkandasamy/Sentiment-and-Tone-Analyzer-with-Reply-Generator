@@ -1,39 +1,35 @@
 """
-LLM Client for GitHub Models
+LLM Client for Ollama
 
 Provides advanced tone detection, trigger identification, and professional
-reply generation using GPT-4o-mini via GitHub Models (Azure OpenAI endpoint).
+reply generation using phi3 model via Ollama (local, unlimited, free).
 """
 
 import json
-import os
 from typing import Dict
-from openai import OpenAI
+import requests
 from fastapi import HTTPException
-from dotenv import load_dotenv
-
-load_dotenv()   
 
 
 class LLMClient:
-    """GitHub Models client for advanced text analysis"""
+    """Ollama client for advanced text analysis"""
     
     def __init__(self):
-        """Initialize GitHub Models OpenAI client"""
-        self.github_token = os.getenv("GITHUB_TOKEN")
+        """Initialize Ollama client"""
+        self.base_url = "http://localhost:11434"
+        self.model = "phi3"
         
-        if not self.github_token:
-            raise ValueError("GITHUB_TOKEN environment variable not set")
-        
-        self.client = OpenAI(
-            base_url="https://models.inference.ai.azure.com",
-            api_key=self.github_token,
-        )
-        self.model = "gpt-4o-mini"
+        # Test connection
+        try:
+            response = requests.get(f"{self.base_url}/api/tags")
+            if response.status_code != 200:
+                raise ValueError("Ollama server not accessible")
+        except Exception as e:
+            raise ValueError(f"Ollama connection failed: {e}")
     
     def analyze_message(self, message: str) -> Dict:
         """
-        Perform detailed message analysis using LLM
+        Perform detailed message analysis using Ollama
         
         Args:
             message: Customer message to analyze
@@ -41,17 +37,7 @@ class LLMClient:
         Returns:
             Dict with tone, triggers, and suggested reply
         """
-        try:
-            response = self.client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """You are a customer service expert. Analyze messages and respond ONLY with valid JSON.
-No markdown, no code blocks, just raw JSON. You MUST always provide exactly 2 triggers."""
-                    },
-                    {
-                        "role": "user",
-                        "content": f"""Analyze this customer message and respond with this exact JSON structure:
+        prompt = f"""Analyze this customer message and respond with ONLY valid JSON in this exact format:
 {{
   "tone": ["primary_tone", "secondary_tone"],
   "triggers": ["trigger1", "trigger2"],
@@ -79,15 +65,25 @@ Reply guidelines:
 
 Customer Message: "{message}"
 
-Respond with JSON only (no markdown):"""
-                    }
-                ],
-                model=self.model,
-                temperature=0.3,
-                max_tokens=500
+Respond with JSON only (no markdown, no explanation):"""
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json"
+                },
+                timeout=30
             )
             
-            content = response.choices[0].message.content.strip()
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Ollama request failed")
+            
+            result = response.json()
+            content = result.get("response", "")
             
             # Clean potential markdown artifacts
             content = content.replace("```json", "").replace("```", "").strip()

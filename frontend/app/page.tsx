@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Send, Sparkles, Copy, Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { HistorySidebar } from '@/components/history-sidebar';
 
 interface Message {
   id: string;
@@ -94,6 +95,10 @@ export default function ChatInterface() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleHistorySelect = (message: string) => {
+    setInput(message);
+  };
+
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment.toLowerCase()) {
       case 'positive':
@@ -118,6 +123,9 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* History Sidebar */}
+      <HistorySidebar onSelectMessage={handleHistorySelect} />
+
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4">

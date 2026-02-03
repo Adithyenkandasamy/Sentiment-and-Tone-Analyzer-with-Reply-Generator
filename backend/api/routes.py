@@ -18,11 +18,12 @@ router = APIRouter()
 sentiment_analyzer = SentimentAnalyzer()
 llm_client = None
 
-# Initialize LLM client if token is available
+# Initialize LLM client if Ollama is available
 try:
     llm_client = LLMClient()
-except ValueError:
-    print("Warning: GITHUB_TOKEN not set. LLM features will be limited.")
+except ValueError as e:
+    print(f"Warning: Ollama not available. {e}")
+    llm_client = None
 
 
 @router.post("/api/analyze", response_model=SentimentResponse)
@@ -114,18 +115,56 @@ async def root():
     """API status endpoint"""
     return {
         "status": "API Running",
-        "model": "GitHub Models (gpt-4o-mini)",
+        "model": "Ollama (phi3)",
         "sentiment_engine": "VADER",
-        "token_configured": bool(llm_client)
+        "llm_available": bool(llm_client)
     }
 
 
 @router.get("/health")
 async def health():
     """Health check endpoint"""
-    github_token = os.getenv("GITHUB_TOKEN")
     return {
         "status": "healthy",
-        "github_token": "configured" if github_token else "missing",
-        "llm_available": bool(llm_client)
+        "ollama_running": bool(llm_client),
+        "llm_model": "phi3" if llm_client else None
+    }
+
+
+@router.get("/api/history")
+async def get_history(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get analysis history with pagination"""
+    results = crud.get_all_analysis_results(db, skip=skip, limit=limit)
+    return {
+        "count": len(results),
+        "results": [result.to_dict() for result in results]
+    }
+
+
+@router.get("/api/history/{result_id}")
+async def get_analysis_by_id(result_id: int, db: Session = Depends(get_db)):
+    """Get a specific analysis result by ID"""
+    result = crud.get_analysis_result(db, result_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Analysis result not found")
+    return result.to_dict()
+
+
+@router.get("/api/history/sentiment/{sentiment}")
+async def get_by_sentiment(
+    sentiment: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get analysis results filtered by sentiment (Positive, Negative, Neutral)"""
+    results = crud.get_results_by_sentiment(db, sentiment, skip=skip, limit=limit)
+    return {
+        "sentiment": sentiment,
+        "count": len(results),
+        "results": [result.to_dict() for result in results]
     }
