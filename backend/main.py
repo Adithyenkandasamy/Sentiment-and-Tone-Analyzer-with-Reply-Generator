@@ -27,10 +27,9 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")  # ✅ FIXED: Use os.getenv, not load_d
 
 # GitHub Models client
 client = OpenAI(
-    base_url="https://models.inference.ai.azure.com/chat/completions",
+    base_url="https://models.inference.ai.azure.com",
     api_key=GITHUB_TOKEN,
 )
-
 class MessageRequest(BaseModel):
     message: str
 
@@ -74,27 +73,39 @@ def analyze_with_github_model(message: str) -> Dict:
                 {
                     "role": "system",
                     "content": """You are a customer service expert. Analyze messages and respond ONLY with valid JSON.
-No markdown, no code blocks, just raw JSON."""
+No markdown, no code blocks, just raw JSON. You MUST always provide exactly 2 triggers."""
                 },
                 {
                     "role": "user",
                     "content": f"""Analyze this customer message and respond with this exact JSON structure:
 {{
   "tone": ["primary_tone", "secondary_tone"],
-  "triggers": ["specific conflict trigger 1", "specific conflict trigger 2"],
+  "triggers": ["trigger1", "trigger2"],
   "reply": "a calm, empathetic, professional response (under 100 words)"
 }}
 
-Guidelines:
-- Tone examples: Angry, Frustrated, Confused, Polite, Demanding, Appreciative, Neutral
-- Triggers must be specific to THIS message (e.g., "Uses urgent language 'immediately'")
-- Reply must: acknowledge concern, show empathy, offer solution, maintain professional tone
-- Do NOT repeat aggressive phrases from the original message
-- Keep reply concise and actionable
+CRITICAL REQUIREMENTS:
+- You MUST provide exactly 2 tone descriptors
+- You MUST provide exactly 2 conflict triggers (even for neutral/positive messages)
+- For neutral/positive messages, identify potential concerns or observations instead of conflicts
+
+Tone examples: Angry, Frustrated, Confused, Polite, Demanding, Appreciative, Neutral, Casual, Formal, Urgent
+
+Trigger examples:
+- Negative: "Uses aggressive language", "Demands immediate action", "Expresses dissatisfaction"
+- Neutral: "Seeks general information", "Standard inquiry format", "No specific concerns raised"
+- Positive: "Expresses gratitude", "Provides positive feedback", "Shows satisfaction"
+
+Reply guidelines:
+- Acknowledge their message
+- Show empathy and understanding
+- Offer help or next steps
+- Keep professional and warm tone
+- Under 100 words
 
 Customer Message: "{message}"
 
-Respond with JSON only:"""
+Respond with JSON only (no markdown):"""
                 }
             ],
             model="gpt-4o-mini",
@@ -110,9 +121,21 @@ Respond with JSON only:"""
         # Parse JSON
         analysis = json.loads(content)
         
-        # Validate structure
-        if not all(key in analysis for key in ["tone", "triggers", "reply"]):
-            raise ValueError("Invalid response structure")
+        # Validate and ensure exactly 2 items in each array
+        if "tone" not in analysis or len(analysis["tone"]) < 2:
+            analysis["tone"] = (analysis.get("tone", []) + ["Professional", "Neutral"])[:2]
+        
+        if "triggers" not in analysis or len(analysis["triggers"]) < 2:
+            # Provide default triggers based on sentiment if missing
+            analysis["triggers"] = (analysis.get("triggers", []) + 
+                                   ["Standard customer inquiry", "No specific conflict indicators"])[:2]
+        
+        # Ensure exactly 2 items
+        analysis["tone"] = analysis["tone"][:2]
+        analysis["triggers"] = analysis["triggers"][:2]
+        
+        if "reply" not in analysis:
+            analysis["reply"] = "Thank you for your message. We're here to help."
         
         return analysis
         
