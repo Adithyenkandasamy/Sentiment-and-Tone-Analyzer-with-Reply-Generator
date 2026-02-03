@@ -17,7 +17,7 @@ class LLMClient:
     def __init__(self):
         """Initialize Ollama client"""
         self.base_url = "http://localhost:11434"
-        self.model = "phi3"
+        self.model = "llama3.2:1b"
         
         # Test connection
         try:
@@ -74,9 +74,13 @@ Respond with JSON only (no markdown, no explanation):"""
                     "model": self.model,
                     "prompt": prompt,
                     "stream": False,
-                    "format": "json"
+                    "format": "json",
+                    "options": {
+                        "temperature": 0.3,
+                        "num_predict": 300
+                    }
                 },
-                timeout=30
+                timeout=60  # Increased timeout to 60 seconds
             )
             
             if response.status_code != 200:

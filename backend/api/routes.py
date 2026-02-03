@@ -115,7 +115,7 @@ async def root():
     """API status endpoint"""
     return {
         "status": "API Running",
-        "model": "Ollama (phi3)",
+        "model": "Ollama (llama3.2:1b)",
         "sentiment_engine": "VADER",
         "llm_available": bool(llm_client)
     }
@@ -127,7 +127,7 @@ async def health():
     return {
         "status": "healthy",
         "ollama_running": bool(llm_client),
-        "llm_model": "phi3" if llm_client else None
+        "llm_model": "llama3.2:1b" if llm_client else None
     }
 
 
